@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Churn Analytics | Executive Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#111827',
+                        darkcard: '#1f2937',
+                        darkborder: '#374151'
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .card { border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1.5rem; }
+        .kpi-title { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        .kpi-value { font-size: 1.875rem; font-weight: 700; margin-top: 0.5rem; }
+        .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; border-bottom-width: 2px; padding-bottom: 0.5rem; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #4b5563; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        /* Transitions */
+        .transition-colors { transition-property: background-color, border-color, color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 300ms; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden bg-gray-100 text-gray-900 dark:bg-darkbg dark:text-gray-100 transition-colors">
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-white dark:bg-darkcard border-r border-gray-200 dark:border-darkborder shadow-sm flex flex-col z-30 transform -translate-x-full md:translate-x-0 md:static transition-transform duration-300">
+        <div class="p-6 border-b border-gray-200 dark:border-darkborder flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-blue-700 dark:text-blue-500"><i class="fas fa-chart-pie mr-2"></i>Customer Churn Dashboard</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Analyze and predict customer churn behavior</p>
+            </div>
+            <button class="md:hidden text-gray-500 dark:text-gray-400 focus:outline-none" onclick="toggleSidebar()">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+        <nav class="flex-1 overflow-y-auto p-4 space-y-2" id="nav-menu">
+            <a href="#overview" class="flex items-center px-4 py-2 text-sm rounded font-semibold bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white transition-colors" onclick="switchTab('overview', this)"><i class="fas fa-home w-5"></i> Executive Summary</a>
+            <a href="#churn" class="flex items-center px-4 py-2 text-sm text-gray-600 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onclick="switchTab('churn', this)"><i class="fas fa-users-slash w-5"></i> Churn Drivers</a>
+            <a href="#model" class="flex items-center px-4 py-2 text-sm text-gray-600 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onclick="switchTab('model', this)"><i class="fas fa-robot w-5"></i> Prediction Model</a>
+            <a href="#retention" class="flex items-center px-4 py-2 text-sm text-gray-600 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onclick="switchTab('retention', this)"><i class="fas fa-hand-holding-usd w-5"></i> Risk & Retention</a>
+        </nav>
+        <div class="p-4 border-t border-gray-200 dark:border-darkborder text-xs text-gray-400 dark:text-gray-500">
+            Based on Project Dataset<br>N = 7,043 Customers
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-y-auto relative">
+        <!-- Header -->
+        <header class="bg-white dark:bg-darkcard shadow-sm border-b border-gray-200 dark:border-darkborder px-4 md:px-8 py-4 flex justify-between items-center z-10 sticky top-0 transition-colors">
+            <div class="flex items-center">
+                <button class="md:hidden text-gray-600 dark:text-gray-300 mr-4 focus:outline-none" onclick="toggleSidebar()">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div>
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">Customer Churn Analytics</h2>
+                    <p class="hidden md:block text-sm text-gray-500 dark:text-gray-400 mt-1">An executive view of customer churn, retention risk, and business performance.</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button id="theme-toggle" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors focus:outline-none" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                    <i class="fas fa-moon hidden dark:block"></i>
+                    <i class="fas fa-sun block dark:hidden"></i>
+                </button>
+                <span class="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                    <i class="fas fa-check-circle mr-1.5"></i> Up To Date
+                </span>
+            </div>
+        </header>
+
+        <!-- Container -->
+        <div class="p-4 md:p-8 pb-20 space-y-6 max-w-7xl mx-auto w-full">
+            
+            <!-- Global KPIs -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="card bg-white dark:bg-darkcard border-l-4 border-blue-500 transition-colors">
+                    <h3 class="kpi-title text-gray-500 dark:text-gray-400">Total Customers</h3>
+                    <p class="kpi-value text-gray-900 dark:text-white">7,043</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Active database size</p>
+                </div>
+                <div class="card bg-white dark:bg-darkcard border-l-4 border-red-500 transition-colors">
+                    <h3 class="kpi-title text-gray-500 dark:text-gray-400">Overall Churn Rate</h3>
+                    <p class="kpi-value text-red-600 dark:text-red-400">26.5%</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">1,869 customers lost</p>
+                </div>
+                <div class="card bg-white dark:bg-darkcard border-l-4 border-green-500 transition-colors">
+                    <h3 class="kpi-title text-gray-500 dark:text-gray-400">Overall Retained</h3>
+                    <p class="kpi-value text-green-600 dark:text-green-400">73.5%</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">5,174 active subscribers</p>
+                </div>
+                <div class="card bg-white dark:bg-darkcard border-l-4 border-amber-500 transition-colors">
+                    <h3 class="kpi-title text-gray-500 dark:text-gray-400">High-Risk Customers</h3>
+                    <p class="kpi-value text-amber-600 dark:text-amber-400">496</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">&ge;70% predicted churn risk</p>
+                </div>
+            </div>
+
+            <!-- VIEW: OVERVIEW -->
+            <div id="view-overview" class="view-section space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="card bg-white dark:bg-darkcard transition-colors">
+                        <h3 class="section-title border-gray-200 dark:border-darkborder text-gray-800 dark:text-white">Executive Summary & Findings</h3>
+                        <ul class="space-y-4">
+                            <li class="flex items-start">
+                                <span class="text-red-500 mt-1 mr-3"><i class="fas fa-exclamation-triangle"></i></span>
+                                <div>
+                                    <p class="font-semibold text-gray-900 dark:text-white">Month-to-Month Contracts Drive Churn</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">42.7% of customers on month-to-month contracts leave, representing the vast majority of all churn volume.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-red-500 mt-1 mr-3"><i class="fas fa-history"></i></span>
+                                <div>
+                                    <p class="font-semibold text-gray-900 dark:text-white">Early Tenure Vulnerability</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">52.9% of churn occurs within the first 6 months of joining. Onboarding requires immediate improvement.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-amber-500 mt-1 mr-3"><i class="fas fa-network-wired"></i></span>
+                                <div>
+                                    <p class="font-semibold text-gray-900 dark:text-white">Fiber Optic Service Issues</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Fiber optic users experience a surprisingly high 41.9% churn rate, suggesting potential pricing or reliability concerns.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mt-1 mr-3"><i class="fas fa-bullseye"></i></span>
+                                <div>
+                                    <p class="font-semibold text-gray-900 dark:text-white">High-Risk Segment Identified</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">The segment of "New (0-12m) + Month-to-Month + High Charges" yields an extreme 73.5% churn rate.</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card bg-white dark:bg-darkcard transition-colors">
+                        <h3 class="section-title border-gray-200 dark:border-darkborder text-gray-800 dark:text-white">Management Takeaways</h3>
+                        <div class="space-y-3">
+                            <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded transition-colors">
+                                <p class="font-semibold text-blue-900 dark:text-blue-300 text-sm">1. Target First-Year Retention</p>
+                                <p class="text-xs text-blue-800 dark:text-blue-400 mt-1">Implement proactive check-ins and aggressive onboarding support in months 1-6.</p>
+                            </div>
+                            <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded transition-colors">
+                                <p class="font-semibold text-blue-900 dark:text-blue-300 text-sm">2. Contract Conversion Campaigns</p>
+                                <p class="text-xs text-blue-800 dark:text-blue-400 mt-1">Offer steep discounts to convert Month-to-Month users to One-Year contracts after month 3.</p>
+                            </div>
+                            <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded transition-colors">
+                                <p class="font-semibold text-blue-900 dark:text-blue-300 text-sm">3. Investigate Fiber Optic</p>
+                                <p class="text-xs text-blue-800 dark:text-blue-400 mt-1">Cross-reference Fiber Optic churn with technical support tickets and local competitor pricing.</p>
+                            </div>
+                            <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded transition-colors">
+                                <p class="font-semibold text-blue-900 dark:text-blue-300 text-sm">4. Transition from Electronic Check</p>
+                                <p class="text-xs text-blue-800 dark:text-blue-400 mt-1">Incentivize automatic credit card or bank transfers, as electronic check users show 45.3% churn.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: CHURN DRIVERS -->
+            <div id="view-churn" class="view-section hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-gray-200 dark:border-darkborder pb-2 gap-4">
+                    <h3 class="text-xl font-semibold text-gray-800 dark:text-white">Observed Churn Drivers</h3>
+                    <button class="text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded border border-blue-100 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition"><i class="fas fa-filter mr-1"></i> Interactive View</button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card bg-white dark:bg-darkcard transition-colors">
+                        <h4 class="font-semibold text-gray-700 dark:text-gray-300 text-sm mb-4 text-center">Churn by Contract Type</h4>
+                        <div class="h-64"><canvas id="contractChart"></canvas></div>
+                    </div>
+                    <div class="card bg-white dark:bg-darkcard transition-colors">
+                        <h4 class="font-semibold text-gray-700 dark:text-gray-300 text-sm mb-4 text-center">Churn by Tenure Group (Months)</h4>
+                        <div class="h-64"><canvas id="tenureChart"></canvas></div>
+                    </div>
+                    <div class="card bg-white dark:bg-darkcard transition-colors">
+                        <h4 class="font-semibold text-gray-700 dark:text-gray-300 text-sm mb-4 text-center">Churn by Internet Service</h4>
+                        <div class="h-64"><canvas id="internetChart"></canvas></div>
+                    </div>
+                    <div class="card bg-white dark:bg-darkcard transition-colors">
+                        <h4 class="font-semibold text-gray-700 dark:text-gray-300 text-sm mb-4 text-center">Churn by Payment Method</h4>
+                        <div class="h-64"><canvas id="paymentChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: MODEL PREDICTION -->
+            <div id="view-model" class="view-section hidden space-y-6">
+                <div class="card bg-white dark:bg-darkcard transition-colors">
+                    <h3 class="section-title border-gray-200 dark:border-darkborder text-gray-800 dark:text-white">Logistic Regression Prediction Model</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">The trained predictive model identifies future churners based on historical data patterns. Performance metrics are evaluated on an 80/20 test split.</p>
+                    
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded text-center border border-gray-100 dark:border-gray-700 transition-colors">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Accuracy</p>
+                            <p class="text-2xl font-bold text-gray-800 dark:text-white mt-1">80.55%</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded text-center border border-gray-100 dark:border-gray-700 transition-colors">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">ROC-AUC</p>
+                            <p class="text-2xl font-bold text-gray-800 dark:text-white mt-1">0.842</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded text-center border border-gray-100 dark:border-gray-700 transition-colors">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-200 dark:border-gray-600 pb-1 mb-1" title="Model's ability to find actual churners">Recall (Sensitivity)</p>
+                            <p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">55.88%</p>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-800 p-4 rounded text-center border border-gray-100 dark:border-gray-700 transition-colors">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">High-Risk Cutoff</p>
+                            <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">&ge;70%</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h4 class="font-semibold text-gray-700 dark:text-gray-300 text-sm mb-4">Model Logic Translation</h4>
+                            <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                                <li class="flex items-center bg-gray-50 dark:bg-gray-800/50 p-2 rounded"><i class="fas fa-arrow-up text-red-500 mr-3"></i> Increases Risk: Month-to-Month Contract</li>
+                                <li class="flex items-center bg-gray-50 dark:bg-gray-800/50 p-2 rounded"><i class="fas fa-arrow-up text-red-500 mr-3"></i> Increases Risk: Fiber Optic Internet</li>
+                                <li class="flex items-center bg-gray-50 dark:bg-gray-800/50 p-2 rounded"><i class="fas fa-arrow-up text-red-500 mr-3"></i> Increases Risk: Electronic Check</li>
+                                <li class="flex items-center bg-gray-50 dark:bg-gray-800/50 p-2 rounded"><i class="fas fa-arrow-down text-green-500 mr-3"></i> Decreases Risk: High Tenure</li>
+                                <li class="flex items-center bg-gray-50 dark:bg-gray-800/50 p-2 rounded"><i class="fas fa-arrow-down text-green-500 mr-3"></i> Decreases Risk: 2-Year Contract</li>
+                            </ul>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded p-5 border border-blue-100 dark:border-blue-800/50 transition-colors flex flex-col justify-center">
+                            <h4 class="font-semibold text-blue-900 dark:text-blue-300 text-md mb-3"><i class="fas fa-info-circle mr-2"></i> Business Interpretation</h4>
+                            <p class="text-sm text-blue-800 dark:text-blue-100 leading-relaxed">The model trades absolute precision for a broad safety net. It successfully flags nearly 56% of true churners. Targeting the highest-probability subset (the 496 "High Risk" individuals) ensures marketing budget is spent efficiently where retention efforts are needed most.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: RISK & RETENTION -->
+            <div id="view-retention" class="view-section hidden space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Left Col -->
+                    <div class="col-span-1 space-y-6">
+                        <div class="card bg-white dark:bg-darkcard transition-colors">
+                            <h3 class="section-title border-gray-200 dark:border-darkborder text-gray-800 dark:text-white">Customer Segmentation</h3>
+                            <div class="space-y-4">
+                                <div class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 rounded transition-colors">
+                                    <p class="text-xs text-red-600 dark:text-red-400 font-bold uppercase tracking-wider">Critical Risk Segment</p>
+                                    <p class="font-semibold text-gray-900 dark:text-white mt-1">New (0-12m) + Month-to-Month</p>
+                                    <div class="flex justify-between items-center mt-3 pt-2 border-t border-red-200 dark:border-red-800/50">
+                                        <span class="text-sm text-gray-600 dark:text-gray-400">Observed Churn:</span>
+                                        <span class="text-lg font-bold text-red-600 dark:text-red-400">73.5%</span>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/50 rounded transition-colors">
+                                    <p class="text-xs text-green-600 dark:text-green-400 font-bold uppercase tracking-wider">High Loyalty Segment</p>
+                                    <p class="font-semibold text-gray-900 dark:text-white mt-1">Tenure > 60m + 2-Year Contract</p>
+                                    <div class="flex justify-between items-center mt-3 pt-2 border-t border-green-200 dark:border-green-800/50">
+                                        <span class="text-sm text-gray-600 dark:text-gray-400">Observed Churn:</span>
+                                        <span class="text-lg font-bold text-green-600 dark:text-green-400">< 5.0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Col -->
+                    <div class="col-span-1 lg:col-span-2 card bg-white dark:bg-darkcard transition-colors flex flex-col">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                            <h3 class="section-title mb-0 border-0 text-gray-800 dark:text-white">High-Risk Watchlist</h3>
+                            <span class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded">Proxy LTV = Monthly × Tenure</span>
+                        </div>
+                        <div class="overflow-x-auto flex-1 border border-gray-200 dark:border-gray-700 rounded max-h-80">
+                            <table class="w-full text-left text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                <thead class="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 sticky top-0 shadow-sm z-10 transition-colors">
+                                    <tr>
+                                        <th class="p-3 font-semibold border-b dark:border-gray-700">Customer Segment Profile</th>
+                                        <th class="p-3 font-semibold border-b dark:border-gray-700 text-right">Tenure</th>
+                                        <th class="p-3 font-semibold border-b dark:border-gray-700 text-right">Est. Value (LTV)</th>
+                                        <th class="p-3 font-semibold border-b dark:border-gray-700 text-center">Contract</th>
+                                        <th class="p-3 font-semibold border-b dark:border-gray-700 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td class="p-3 flex items-center"><div class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>Fiber Optic + Elec. Check</td>
+                                        <td class="p-3 text-right">2 mo</td>
+                                        <td class="p-3 text-right font-medium">$170</td>
+                                        <td class="p-3 text-center">M2M</td>
+                                        <td class="p-3 text-center"><button class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-darkcard transition">Convert</button></td>
+                                    </tr>
+                                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td class="p-3 flex items-center"><div class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>Fiber Optic + Elec. Check</td>
+                                        <td class="p-3 text-right">4 mo</td>
+                                        <td class="p-3 text-right font-medium">$340</td>
+                                        <td class="p-3 text-center">M2M</td>
+                                        <td class="p-3 text-center"><button class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-darkcard transition">Convert</button></td>
+                                    </tr>
+                                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td class="p-3 flex items-center"><div class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>DSL + Mailed Check</td>
+                                        <td class="p-3 text-right">1 mo</td>
+                                        <td class="p-3 text-right font-medium">$50</td>
+                                        <td class="p-3 text-center">M2M</td>
+                                        <td class="p-3 text-center"><button class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-darkcard transition">Convert</button></td>
+                                    </tr>
+                                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td class="p-3 flex items-center"><div class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>Fiber Optic + Auto Pay</td>
+                                        <td class="p-3 text-right">6 mo</td>
+                                        <td class="p-3 text-right font-medium">$600</td>
+                                        <td class="p-3 text-center">M2M</td>
+                                        <td class="p-3 text-center"><button class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-darkcard transition">Convert</button></td>
+                                    </tr>
+                                    <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td class="p-3 flex items-center"><div class="w-2 h-2 rounded-full bg-amber-500 mr-2"></div>DSL + Elec. Check</td>
+                                        <td class="p-3 text-right">12 mo</td>
+                                        <td class="p-3 text-right font-medium">$720</td>
+                                        <td class="p-3 text-center">One Year</td>
+                                        <td class="p-3 text-center"><button class="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-darkcard transition">Renew</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Theme Management
+        const htmlElement = document.documentElement;
+        
+        // Initialize theme based on user preference or previous setting
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlElement.classList.add('dark');
+        } else {
+            htmlElement.classList.remove('dark');
+        }
+
+        function toggleTheme() {
+            if (htmlElement.classList.contains('dark')) {
+                htmlElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                htmlElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+            updateChartsTheme();
+        }
+
+        // Sidebar Management (Mobile)
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        
+        function toggleSidebar() {
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // Navigation Logic
+        function switchTab(tabId, element) {
+            // Close sidebar on mobile after clicking
+            if (window.innerWidth < 768) {
+                toggleSidebar();
+            }
+
+            // Update nav styles
+            const navLinks = document.getElementById('nav-menu').querySelectorAll('a');
+            navLinks.forEach(el => {
+                el.className = 'flex items-center px-4 py-2 text-sm text-gray-600 dark:text-gray-400 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors';
+            });
+            element.className = 'flex items-center px-4 py-2 text-sm rounded font-semibold bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white transition-colors';
+
+            // Toggle sections
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById('view-' + tabId).classList.remove('hidden');
+        }
+
+        // --- Chart Configuration ---
+        const chartColors = {
+            retained: 'rgba(52, 211, 153, 0.85)', // Green
+            churned: 'rgba(248, 113, 113, 0.85)',  // Red
+        };
+
+        const getChartTextColor = () => htmlElement.classList.contains('dark') ? '#9ca3af' : '#4b5563';
+        const getChartGridColor = () => htmlElement.classList.contains('dark') ? 'rgba(75, 85, 99, 0.2)' : 'rgba(209, 213, 219, 0.4)';
+
+        const getCommonOptions = () => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    position: 'top', 
+                    labels: { 
+                        boxWidth: 12, 
+                        font: {size: 11},
+                        color: getChartTextColor()
+                    } 
+                },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: { 
+                    stacked: true, 
+                    grid: {display: false},
+                    ticks: { color: getChartTextColor() }
+                },
+                y: { 
+                    stacked: true, 
+                    beginAtZero: true, 
+                    border: {display: false},
+                    grid: { color: getChartGridColor() },
+                    ticks: { color: getChartTextColor() }
+                }
+            }
+        });
+
+        // Store chart instances
+        const charts = [];
+
+        // 1. Contract Chart
+        charts.push(new Chart(document.getElementById('contractChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Month-to-month', 'One year', 'Two year'],
+                datasets: [
+                    { label: 'Retained', data: [2220, 1307, 1647], backgroundColor: chartColors.retained },
+                    { label: 'Churned', data: [1655, 166, 48], backgroundColor: chartColors.churned }
+                ]
+            },
+            options: getCommonOptions()
+        }));
+
+        // 2. Tenure Chart
+        charts.push(new Chart(document.getElementById('tenureChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['0-12m', '13-24m', '25-48m', '49-60m', '60m+'],
+                datasets: [
+                    { label: 'Retained', data: [1070, 738, 1285, 697, 1384], backgroundColor: chartColors.retained },
+                    { label: 'Churned', data: [999, 309, 339, 123, 99], backgroundColor: chartColors.churned }
+                ]
+            },
+            options: getCommonOptions()
+        }));
+
+        // 3. Internet Service
+        charts.push(new Chart(document.getElementById('internetChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['DSL', 'Fiber optic', 'No Internet'],
+                datasets: [
+                    { label: 'Retained', data: [1962, 1799, 1413], backgroundColor: chartColors.retained },
+                    { label: 'Churned', data: [459, 1297, 113], backgroundColor: chartColors.churned }
+                ]
+            },
+            options: getCommonOptions()
+        }));
+
+        // 4. Payment Method
+        charts.push(new Chart(document.getElementById('paymentChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Bank (Auto)', 'Credit (Auto)', 'Elec. Check', 'Mailed Check'],
+                datasets: [
+                    { label: 'Retained', data: [1286, 1290, 1294, 1304], backgroundColor: chartColors.retained },
+                    { label: 'Churned', data: [258, 232, 1071, 308], backgroundColor: chartColors.churned }
+                ]
+            },
+            options: {
+                ...getCommonOptions(),
+                indexAxis: 'y',
+                scales: { 
+                    x: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor() } }, 
+                    y: { stacked: true, grid: {display: false}, ticks: { color: getChartTextColor() } } 
+                }
+            }
+        }));
+
+        // Update charts on theme toggle
+        function updateChartsTheme() {
+            const textColor = getChartTextColor();
+            const gridColor = getChartGridColor();
+            
+            charts.forEach(chart => {
+                chart.options.plugins.legend.labels.color = textColor;
+                
+                if(chart.config.options.indexAxis === 'y') {
+                    chart.options.scales.x.ticks.color = textColor;
+                    chart.options.scales.x.grid.color = gridColor;
+                    chart.options.scales.y.ticks.color = textColor;
+                } else {
+                    chart.options.scales.x.ticks.color = textColor;
+                    chart.options.scales.y.ticks.color = textColor;
+                    chart.options.scales.y.grid.color = gridColor;
+                }
+                chart.update();
+            });
+        }
+    </script>
+</body>
+</html>
